@@ -1,0 +1,22 @@
+heat_template_version: 2015-10-15
+description: Create Floating Ip and associate floating ip to instance
+resources:
+  floating_ip:
+    type: OS::Nova::FloatingIP
+    properties:
+      pool: public
+
+  inst1:
+    type: OS::Nova::Server
+    properties:
+      flavor: m1.small
+      image: cirros
+      networks:
+        - network: fa338809-dc8d-4a2a-b4cb-0f15639fab8b
+      
+
+  association:
+    type: OS::Nova::FloatingIPAssociation
+    properties:
+      floating_ip: { get_resource: floating_ip }
+      server_id: { get_resource: inst1 }

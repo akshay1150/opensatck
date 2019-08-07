@@ -1,0 +1,170 @@
+gslab@docker:~/cont$ cat sample.py 
+import docker
+import json
+client = docker.from_env()
+cont = client.containers.list()
+Id = []
+Name = []
+def container_list():
+   for var in cont:
+      Id.append(str(var.attrs["Id"]))
+      Name.append(str(var.attrs["Name"]))
+   info = dict( zip( Id, Name))
+   return info
+
+def container_info(container_id):
+    return (json.dumps(client.containers.get(container_id).attrs))
+
+def container_param(container_id):
+    list1=["AppArmorProfile","HostConfig","Mounts","Config"]
+    hostconfig=["SecurityOpt","CapAdd","Privileged","ReadonlyRootfs","CpuShares","Memory","RestartPolicy","CgroupParent","UTSMode","Ulimits"]
+    NetworkSetting=["Ports"]
+    dit={}
+    cmd=[]
+    cont1=client.containers.get(container_id).attrs
+    for var in list1:
+       if(var=="HostConfig"):
+          for hostconf in hostconfig:
+             if(hostconf=="RestartPolicy"):
+                 dit.update({hostconf:str(cont1[var][hostconf]["MaximumRetryCount"])})
+             else:
+                 dit.update({hostconf:str(cont1[var][hostconf])})
+       elif(var=="Config"):
+#           cmd=json.dumps(cont1[var]["Cmd"])
+            cmd.append(str(cont1[var]["Cmd"]))
+#            print(type(cmd))
+            if "ssh" in cmd:
+              dit.update({"ssh":"0"})
+            else:
+              dit.update({"ssh":"1"})
+            if "sshd" in cmd:
+              dit.update({"sshd":"0"})
+            else:
+              dit.update({"sshd":"1"})
+        
+            
+       else:
+             dit.update({var:str(cont1[var])})
+       dit.update({}) 
+    return dit
+#print(container_list())
+print(container_param('ae42b633558c'))
+container_param('ae42b633558c')gslab@docker:~/cont$ 
+gslab@docker:~/cont$ 
+gslab@docker:~/cont$ ls
+do.py  sample.py
+gslab@docker:~/cont$ code sample.py .
+gslab@docker:~/cont$ ssh gora@192.168.56.111
+gora@192.168.56.111's password: 
+Last login: Wed Jul 24 09:17:40 2019 from 192.168.56.1
+[gora@localhost ~]$ sudo su
+[sudo] password for gora: 
+[root@localhost gora]# cd ~
+[root@localhost ~]# ls
+anaconda-ks.cfg  demo.yml  initial-setup-ks.cfg  keystonerc_admin  keystonerc_demo  MY_KEY.pem  packstack-answers-20190723-121545.txt
+[root@localhost ~]# source keystonerc_demo 
+[root@localhost ~(keystone_demo)]# openstack server list
++--------------------------------------+---------------------------+--------+---------------------------------+--------+---------+
+| ID                                   | Name                      | Status | Networks                        | Image  | Flavor  |
++--------------------------------------+---------------------------+--------+---------------------------------+--------+---------+
+| 7e22af69-1eef-4bd7-bb79-0e6092dd9cba | stack-server-2mtwqpfqoqed | ACTIVE | private=10.0.0.106              | cirros | m1.tiny |
+| 131a449f-7f1c-4738-be0e-9209432e9c90 | isro-instance             | ACTIVE | private=10.0.0.234, 172.24.4.55 |        | m1.tiny |
+| dcfe4d2e-4a57-48ab-9aa2-4e448708140e | demo-instance             | ACTIVE | private=10.0.0.32, 172.24.4.41  |        | m1.tiny |
++--------------------------------------+---------------------------+--------+---------------------------------+--------+---------+
+[root@localhost ~(keystone_demo)]# nano packstack-answers-20190723-121545.txt 
+[root@localhost ~(keystone_demo)]# packstack  packstack-answers-20190723-121545.txt 
+Welcome to the Packstack setup utility
+
+The installation log file is available at: /var/tmp/packstack/20190724-105758-qLwYoY/openstack-setup.log
+Enter the path to your ssh Public key to install on servers  [/root/.ssh/id_rsa.pub] : 
+Enter a default password to be used. Leave blank for a randomly generated one. :
+Confirm password :
+Enter the amount of service workers/threads to use for each service. Leave blank to use the default.  [%{::processorcount}] : 
+Confirm password  [%{::processorcount}] : 
+Should Packstack install MariaDB [y|n]  [y] : ^C
+
+ERROR : Keyboard interrupt caught.
+Please check log file /var/tmp/packstack/20190724-105758-qLwYoY/openstack-setup.log for more information
+[root@localhost ~(keystone_demo)]# ^C
+[root@localhost ~(keystone_demo)]# ^C
+[root@localhost ~(keystone_demo)]# ls
+anaconda-ks.cfg  demo.yml  initial-setup-ks.cfg  keystonerc_admin  keystonerc_demo  MY_KEY.pem  packstack-answers-20190723-121545.txt
+[root@localhost ~(keystone_demo)]# cat demo.yml 
+heat_template_version: 2015-10-15
+description: Launch a basic instance with CirrOS image using the
+             ``m1.tiny`` flavor, ``mykey`` key,  and one network.
+
+parameters:
+  NetID:
+    type: string
+    description: Network ID to use for the instance.
+
+resources:
+  server:
+    type: OS::Nova::Server
+    properties:
+      image: cirros
+      flavor: m1.tiny
+      key_name: my_key
+      networks:
+      - network: { get_param: NetID }
+
+outputs:
+  instance_name:
+    description: Name of the instance.
+    value: { get_attr: [ server, name ] }
+  instance_ip:
+    description: IP address of the instance.
+    value: { get_attr: [ server, first_address ] }
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml "NETID=^C
+[root@localhost ~(keystone_demo)]# openstack network list
++--------------------------------------+---------+--------------------------------------+
+| ID                                   | Name    | Subnets                              |
++--------------------------------------+---------+--------------------------------------+
+| 639883ee-ae20-4c89-a10c-755f46de2ece | public  | 14801a97-65f4-41e7-b820-0a9aea7fa560 |
+| 843f7aa7-22c2-412d-bdd7-8d130048a8b5 | private | 01636de7-f174-4e09-a37d-4c4ade33d9b0 |
++--------------------------------------+---------+--------------------------------------+
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml "NETID=01636de7-f174-4e09-a37d-4c4ade33d9b0" abc
+usage: openstack stack create [-h] [-f {json,shell,table,value,yaml}]
+                              [-c COLUMN] [--max-width <integer>]
+                              [--fit-width] [--print-empty] [--noindent]
+                              [--prefix PREFIX] [-e <environment>]
+                              [--timeout <timeout>] [--pre-create <resource>]
+                              [--enable-rollback] [--parameter <key=value>]
+                              [--parameter-file <key=file>] [--wait]
+                              [--tags <tag1,tag2...>] [--dry-run] -t
+                              <template>
+                              <stack-name>
+openstack stack create: error: unrecognized arguments: abc
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml --parameter "NETID=01636de7-f174-4e09-a37d-4c4ade33d9b0" abc
+ERROR: The Parameter (NETID) was not defined in template.
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml --parameter "NetID=01636de7-f174-4e09-a37d-4c4ade33d9b0" abc
+ERROR: Property error: : resources.server.properties.networks[0].network: : Error validating value '01636de7-f174-4e09-a37d-4c4ade33d9b0': Unable to find network with name or id '01636de7-f174-4e09-a37d-4c4ade33d9b0'
+[root@localhost ~(keystone_demo)]# export NET_ID=$(openstack network list | awk '/ private / { print $2 }')
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml --parameter "NetID=01636de7-f174-4e09-a37d-4c4ade33d9b0" abc
+ERROR: Property error: : resources.server.properties.networks[0].network: : Error validating value '01636de7-f174-4e09-a37d-4c4ade33d9b0': Unable to find network with name or id '01636de7-f174-4e09-a37d-4c4ade33d9b0'
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml --parameter "NetID=NET_ID" abc
+ERROR: Property error: : resources.server.properties.networks[0].network: : Error validating value 'NET_ID': Unable to find network with name or id 'NET_ID'
+[root@localhost ~(keystone_demo)]# ls
+anaconda-ks.cfg  demo.yml  initial-setup-ks.cfg  keystonerc_admin  keystonerc_demo  MY_KEY.pem  packstack-answers-20190723-121545.txt
+[root@localhost ~(keystone_demo)]# nano demo.yml 
+[root@localhost ~(keystone_demo)]# export NET_ID=$(openstack network list | awk '/ private / { print $2 }')
+[root@localhost ~(keystone_demo)]# echo $ NET_ID
+$ NET_ID
+[root@localhost ~(keystone_demo)]# echo $NET_ID
+843f7aa7-22c2-412d-bdd7-8d130048a8b5
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml --parameter "NetID=NET_ID^Cabc
+[root@localhost ~(keystone_demo)]# openstack stack create -t demo.yml --parameter "NetID=$NET_ID" abc
++---------------------+----------------------------------------------------------------------------------------------------------+
+| Field               | Value                                                                                                    |
++---------------------+----------------------------------------------------------------------------------------------------------+
+| id                  | 9e623972-835f-4417-b735-b0e6107ef74d                                                                     |
+| stack_name          | abc                                                                                                      |
+| description         | Launch a basic instance with CirrOS image using the ``m1.tiny`` flavor, ``mykey`` key,  and one network. |
+| creation_time       | 2019-07-24T15:07:46Z                                                                                     |
+| updated_time        | None                                                                                                     |
+| stack_status        | CREATE_IN_PROGRESS                                                                                       |
+| stack_status_reason | Stack CREATE started                                                                                     |
++---------------------+----------------------------------------------------------------------------------------------------------+
+[root@localhost ~(keystone_demo)]# 
+
